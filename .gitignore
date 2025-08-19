@@ -1,4 +1,5 @@
 py_tests/
 tensor.dSYM/
+tensor
 ./tensor
 .DS_Store/
