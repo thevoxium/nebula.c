@@ -26,11 +26,13 @@ void free_tensor(Tensor *t);
 Tensor make_tensor(int *shape, int ndim, float *array, bool requires_grad);
 Tensor from_array(int *shape, int ndim, float *array, bool requires_grad);
 Tensor random_like(int *shape, int ndim, bool requires_grad);
+float at(const Tensor *t, const int *idx);
 
 Tensor add(const Tensor *a, const Tensor *b);
 Tensor sub(const Tensor *a, const Tensor *b);
-
 Tensor sigmoid(const Tensor *a);
+
+Tensor matmul(const Tensor *a, const Tensor *b);
 
 void zero_grad(Tensor *t);
 void backprop(Tensor *out);

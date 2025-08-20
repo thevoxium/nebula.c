@@ -34,6 +34,14 @@ size_t numel(const Tensor *a) {
   return num_elements;
 }
 
+float at(const Tensor *t, const int *idx) {
+  int result_idx = 0;
+  for (int i = 0; i < t->ndim; ++i) {
+    result_idx += t->strides[i] * idx[i];
+  }
+  return t->data[result_idx];
+}
+
 Tensor make_tensor(int *shape, int ndim, float *array, bool requires_grad) {
   Tensor t;
   t.ndim = ndim;
@@ -129,6 +137,44 @@ void sigmoid_backward(Tensor *out) {
   }
 }
 
+void matmul_backward(Tensor *out) {
+  if (out->requires_grad == false) {
+    return;
+  }
+
+  Tensor *A = out->parents[0];
+  Tensor *B = out->parents[1];
+
+  int m = A->shape[0];
+  int k = A->shape[1];
+  int n = B->shape[1];
+
+  if (A->requires_grad) {
+    // dA = dC @ B^T
+    for (int i = 0; i < m; ++i) {
+      for (int kk = 0; kk < k; ++kk) {
+        float sum = 0.0f;
+        for (int j = 0; j < n; ++j) {
+          sum += out->grad[i * n + j] * B->data[kk * n + j];
+        }
+        A->grad[i * k + kk] += sum;
+      }
+    }
+  }
+  if (B->requires_grad) {
+    // dB = A^T @ dC
+    for (int kk = 0; kk < k; ++kk) {
+      for (int j = 0; j < n; ++j) {
+        float sum = 0.0f;
+        for (int i = 0; i < m; ++i) {
+          sum += A->data[i * k + kk] * out->grad[i * n + j];
+        }
+        B->grad[kk * n + j] += sum;
+      }
+    }
+  }
+}
+
 Tensor add(const Tensor *a, const Tensor *b) {
   if (!check_shape(a, b)) {
     fprintf(stderr, "add_tensors error: shape mismatch\n");
@@ -194,6 +240,40 @@ Tensor sigmoid(const Tensor *a) {
     out.parents = malloc(sizeof(Tensor *));
     out.parents[0] = (Tensor *)a;
     out._backward = sigmoid_backward;
+  }
+
+  return out;
+}
+
+Tensor matmul(const Tensor *a, const Tensor *b) {
+  if (a->ndim != 2 || b->ndim != 2) {
+    fprintf(stderr, "mm error: both tensors must be 2-D\n");
+    return (Tensor){0};
+  }
+  if (a->shape[1] != b->shape[0]) {
+    fprintf(stderr, "mm error: inner dimensions must match (%d != %d)\n",
+            a->shape[1], b->shape[0]);
+    return (Tensor){0};
+  }
+  int m = a->shape[0], k = a->shape[1], n = b->shape[1];
+  Tensor out = make_tensor((int[]){m, n}, a->ndim, NULL,
+                           a->requires_grad || b->requires_grad);
+
+#pragma omp parallel for schedule(static)
+  for (int i = 0; i < m; i++) {
+    for (int kk = 0; kk < k; kk++) {
+      for (int j = 0; j < n; j++) {
+        out.data[i * n + j] += (a->data[i * k + kk] * b->data[kk * n + j]);
+      }
+    }
+  }
+
+  if (out.requires_grad) {
+    out.num_parents = 2;
+    out.parents = malloc(2 * sizeof(Tensor *));
+    out.parents[0] = (Tensor *)a;
+    out.parents[1] = (Tensor *)b;
+    out._backward = matmul_backward;
   }
 
   return out;
