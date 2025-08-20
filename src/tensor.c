@@ -150,7 +150,8 @@ void matmul_backward(Tensor *out) {
   int n = B->shape[1];
 
   if (A->requires_grad) {
-    // dA = dC @ B^T
+// dA = dC @ B^T
+#pragma omp parallel for schedule(static)
     for (int i = 0; i < m; ++i) {
       for (int kk = 0; kk < k; ++kk) {
         float sum = 0.0f;
@@ -162,7 +163,8 @@ void matmul_backward(Tensor *out) {
     }
   }
   if (B->requires_grad) {
-    // dB = A^T @ dC
+// dB = A^T @ dC
+#pragma omp parallel for schedule(static)
     for (int kk = 0; kk < k; ++kk) {
       for (int j = 0; j < n; ++j) {
         float sum = 0.0f;
